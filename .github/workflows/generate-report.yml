@@ -3,6 +3,10 @@ name: Generate F&O Analysis Report
 on:
   workflow_dispatch:  # Allows manual trigger from GitHub UI
 
+env:
+  GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
+  GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+
 jobs:
   generate-report:
     runs-on: ubuntu-latest
@@ -37,20 +41,11 @@ jobs:
           echo "Files in data directory:"
           ls -lh data/ || echo "Data directory is empty"
       
-      - name: Commit and Push Output
+      - name: Upload PDF to Google Drive
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add -A
-          git diff --cached --name-only
-          if [ -n "$(git diff --cached --name-only)" ]; then
-            git commit -m "Generated F&O Analysis Report - $(date '+%Y-%m-%d %H:%M:%S')"
-            git push
-            echo "✅ Changes committed and pushed successfully!"
-          else
-            echo "⚠️ No changes to commit"
-          fi
+          python upload_to_gdrive.py
         continue-on-error: true
+        if: env.GDRIVE_CREDENTIALS != '' && env.GDRIVE_FOLDER_ID != ''
       
       - name: List all generated files
         run: |
