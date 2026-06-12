@@ -21,24 +21,38 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
+      - name: Create Output directory
+        run: mkdir -p Output data
+      
       - name: Run F&O Analysis (Premarket)
         run: |
           python run_analysis.py premarket
+        continue-on-error: true
+      
+      - name: Check for generated files
+        run: |
+          echo "Files in Output directory:"
+          ls -lh Output/ || echo "Output directory is empty"
+          echo ""
+          echo "Files in data directory:"
+          ls -lh data/ || echo "Data directory is empty"
       
       - name: Commit and Push Output
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add Output/ data/
-          git commit -m "Generated F&O Analysis Report - $(date '+%Y-%m-%d %H:%M:%S')" || echo "No changes to commit"
-          git push
+          git add -A
+          git diff --cached --name-only
+          if [ -n "$(git diff --cached --name-only)" ]; then
+            git commit -m "Generated F&O Analysis Report - $(date '+%Y-%m-%d %H:%M:%S')"
+            git push
+            echo "✅ Changes committed and pushed successfully!"
+          else
+            echo "⚠️ No changes to commit"
+          fi
         continue-on-error: true
       
-      - name: Report Generation Status
+      - name: List all generated files
         run: |
-          if [ -f "Output"/Nifty_Analysis*.pdf ]; then
-            echo "✅ PDF Report Generated Successfully!"
-            ls -lh Output/Nifty_Analysis*.pdf
-          else
-            echo "⚠️ PDF report not found, but analysis completed"
-          fi
+          echo "=== Final Directory Structure ==="
+          find . -name "*.pdf" -o -name "market_data.json" | head -20
