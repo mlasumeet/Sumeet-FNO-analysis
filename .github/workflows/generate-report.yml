@@ -1,0 +1,44 @@
+name: Generate F&O Analysis Report
+
+on:
+  workflow_dispatch:  # Allows manual trigger from GitHub UI
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run F&O Analysis (Premarket)
+        run: |
+          python run_analysis.py premarket
+      
+      - name: Commit and Push Output
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add Output/ data/
+          git commit -m "Generated F&O Analysis Report - $(date '+%Y-%m-%d %H:%M:%S')" || echo "No changes to commit"
+          git push
+        continue-on-error: true
+      
+      - name: Report Generation Status
+        run: |
+          if [ -f "Output"/Nifty_Analysis*.pdf ]; then
+            echo "✅ PDF Report Generated Successfully!"
+            ls -lh Output/Nifty_Analysis*.pdf
+          else
+            echo "⚠️ PDF report not found, but analysis completed"
+          fi
