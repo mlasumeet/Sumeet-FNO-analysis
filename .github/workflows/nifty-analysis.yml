@@ -1,0 +1,116 @@
+name: Nifty F&O Analysis
+
+on:
+  schedule:
+    # 00:00 IST = 18:30 UTC (Mon-Fri)
+    - cron: '30 18 * * 1-5'
+    # 06:00 IST = 00:30 UTC (Tue-Sat, catches Fri overnight data)
+    - cron: '30 0 * * 2-6'
+    # 09:00 IST = 03:30 UTC (Mon-Fri)
+    - cron: '30 3 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      run_type:
+        description: 'Run type'
+        required: false
+        default: 'close'
+        type: choice
+        options:
+          - close
+          - premarket
+          - open
+
+jobs:
+  generate-analysis:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Determine run type
+        id: run-type
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "type=${{ github.event.inputs.run_type }}" >> $GITHUB_OUTPUT
+          else
+            # Auto-detect based on schedule
+            HOUR_UTC=$(date -u +%H)
+            MIN_UTC=$(date -u +%M)
+            # 18:30 UTC = 00:00 IST (close)
+            # 00:30 UTC = 06:00 IST (premarket)
+            # 03:30 UTC = 09:00 IST (open)
+            if [ "$HOUR_UTC" -eq 18 ] || [ "$HOUR_UTC" -eq 19 ]; then
+              echo "type=close" >> $GITHUB_OUTPUT
+            elif [ "$HOUR_UTC" -eq 0 ] || [ "$HOUR_UTC" -eq 1 ]; then
+              echo "type=premarket" >> $GITHUB_OUTPUT
+            else
+              echo "type=open" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Fetch market data
+        run: python fetch_data.py ${{ steps.run-type.outputs.type }}
+        env:
+          PYTHONUNBUFFERED: 1
+
+      - name: Generate PDF
+        run: python generate_pdf.py
+        env:
+          PYTHONUNBUFFERED: 1
+
+      - name: Get PDF filename
+        id: pdf-name
+        run: |
+          DATE=$(date -u +"%d%b%Y" --date="now")
+          echo "filename=Nifty_Analysis_${DATE}.pdf" >> $GITHUB_OUTPUT
+
+      - name: Upload PDF as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nifty-analysis-${{ github.run_number }}
+          path: Output/*.pdf
+          retention-days: 30
+
+      - name: Upload to Google Drive
+        if: ${{ secrets.GDRIVE_CREDENTIALS != '' }}
+        uses: logickoder/g-drive-upload@main
+        with:
+          authType: 'service'
+          credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
+          filename: 'Output/${{ steps.pdf-name.outputs.filename }}'
+          folderId: ${{ secrets.GDRIVE_FOLDER_ID }}
+          overwrite: 'true'
+
+      - name: Cleanup old artifacts
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listArtifactsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+            for (const artifact of artifacts.data.artifacts) {
+              if (artifact.name.startsWith('nifty-analysis-')) {
+                const days = Math.floor((Date.now() - new Date(artifact.created_at).getTime()) / 86400000);
+                if (days > 30) {
+                  await github.rest.actions.deleteArtifact({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    artifact_id: artifact.id
+                  });
+                }
+              }
+            }
