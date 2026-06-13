@@ -9,9 +9,13 @@ import binascii
 import glob
 import traceback
 from google.oauth2.service_account import Credentials
+from google.oauth2.credentials import Credentials as UserCredentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+
+
+DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
 
 def safe_print(msg):
@@ -49,8 +53,40 @@ def load_credentials_from_secret(secret_value):
     return json.loads(creds_json)
 
 
+def get_oauth_service():
+    """Create Google Drive API service from OAuth client and token secrets."""
+    oauth_client = os.environ.get("GDRIVE_OAUTH_CLIENT")
+    oauth_token = os.environ.get("GDRIVE_OAUTH_TOKEN")
+    if not oauth_client or not oauth_token:
+        return None, None
+
+    client_config = load_credentials_from_secret(oauth_client)
+    token_info = load_credentials_from_secret(oauth_token)
+    client_info = client_config.get("installed") or client_config.get("web") or {}
+
+    credentials = UserCredentials(
+        token=token_info.get("token"),
+        refresh_token=token_info.get("refresh_token"),
+        token_uri=token_info.get("token_uri", "https://oauth2.googleapis.com/token"),
+        client_id=client_info.get("client_id"),
+        client_secret=client_info.get("client_secret"),
+        scopes=token_info.get("scopes") or DRIVE_SCOPES,
+    )
+
+    if credentials.expired and credentials.refresh_token:
+        credentials.refresh(Request())
+
+    safe_print("Debug: using OAuth user credentials")
+    service = build("drive", "v3", credentials=credentials, cache_discovery=False)
+    return service, "OAuth user"
+
+
 def get_gdrive_service():
     """Create Google Drive API service from credentials and provide debugging info."""
+    oauth_service, oauth_identity = get_oauth_service()
+    if oauth_service:
+        return oauth_service, oauth_identity
+
     creds_b64 = os.environ.get("GDRIVE_CREDENTIALS")
     if not creds_b64:
         safe_print("ERROR: GDRIVE_CREDENTIALS environment variable not set")

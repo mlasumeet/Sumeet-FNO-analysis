@@ -6,6 +6,8 @@ on:
 env:
   GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
   GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+  GDRIVE_OAUTH_CLIENT: ${{ secrets.GDRIVE_OAUTH_CLIENT }}
+  GDRIVE_OAUTH_TOKEN: ${{ secrets.GDRIVE_OAUTH_TOKEN }}
 
 jobs:
   generate-report:
@@ -44,7 +46,7 @@ jobs:
       - name: Upload PDF to Google Drive
         run: |
           python upload_to_gdrive.py
-        if: env.GDRIVE_CREDENTIALS != '' && env.GDRIVE_FOLDER_ID != ''
+        if: env.GDRIVE_FOLDER_ID != '' && ((env.GDRIVE_OAUTH_CLIENT != '' && env.GDRIVE_OAUTH_TOKEN != '') || env.GDRIVE_CREDENTIALS != '')
       
       - name: List all generated files
         run: |

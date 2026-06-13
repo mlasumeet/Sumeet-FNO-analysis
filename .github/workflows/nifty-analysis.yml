@@ -82,13 +82,15 @@ jobs:
           path: Output/*.pdf
           retention-days: 30
       - name: Upload to Google Drive
-        if: ${{ secrets.GDRIVE_CREDENTIALS != '' && secrets.GDRIVE_FOLDER_ID != '' }}
+        if: ${{ secrets.GDRIVE_FOLDER_ID != '' && ((secrets.GDRIVE_OAUTH_CLIENT != '' && secrets.GDRIVE_OAUTH_TOKEN != '') || secrets.GDRIVE_CREDENTIALS != '') }}
         run: |
           python upload_to_gdrive.py
         env:
           PYTHONUNBUFFERED: 1
           GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
           GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+          GDRIVE_OAUTH_CLIENT: ${{ secrets.GDRIVE_OAUTH_CLIENT }}
+          GDRIVE_OAUTH_TOKEN: ${{ secrets.GDRIVE_OAUTH_TOKEN }}
 
       - name: Cleanup old artifacts
         if: always()
