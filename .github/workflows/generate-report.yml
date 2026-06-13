@@ -44,7 +44,6 @@ jobs:
       - name: Upload PDF to Google Drive
         run: |
           python upload_to_gdrive.py
-        continue-on-error: true
         if: env.GDRIVE_CREDENTIALS != '' && env.GDRIVE_FOLDER_ID != ''
       
       - name: List all generated files

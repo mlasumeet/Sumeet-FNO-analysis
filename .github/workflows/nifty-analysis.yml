@@ -87,6 +87,8 @@ jobs:
           python upload_to_gdrive.py
         env:
           PYTHONUNBUFFERED: 1
+          GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
 
       - name: Cleanup old artifacts
         if: always()
