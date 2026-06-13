@@ -81,16 +81,12 @@ jobs:
           name: nifty-analysis-${{ github.run_number }}
           path: Output/*.pdf
           retention-days: 30
-
       - name: Upload to Google Drive
-        if: ${{ secrets.GDRIVE_CREDENTIALS != '' }}
-        uses: logickoder/g-drive-upload@main
-        with:
-          authType: 'service'
-          credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
-          filename: 'Output/${{ steps.pdf-name.outputs.filename }}'
-          folderId: ${{ secrets.GDRIVE_FOLDER_ID }}
-          overwrite: 'true'
+        if: ${{ secrets.GDRIVE_CREDENTIALS != '' && secrets.GDRIVE_FOLDER_ID != '' }}
+        run: |
+          python upload_to_gdrive.py
+        env:
+          PYTHONUNBUFFERED: 1
 
       - name: Cleanup old artifacts
         if: always()
