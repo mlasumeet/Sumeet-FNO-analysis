@@ -5,6 +5,7 @@ Requires GDRIVE_CREDENTIALS (base64 encoded JSON) and GDRIVE_FOLDER_ID environme
 import os
 import json
 import base64
+import binascii
 import glob
 import traceback
 from google.oauth2.service_account import Credentials
@@ -20,6 +21,34 @@ def safe_print(msg):
         pass
 
 
+def load_credentials_from_secret(secret_value):
+    """Load service-account credentials from raw JSON or one-line base64 JSON."""
+    cleaned = secret_value.strip()
+
+    if cleaned.startswith("{"):
+        return json.loads(cleaned)
+
+    try:
+        decoded = base64.b64decode(cleaned, validate=True)
+    except binascii.Error as exc:
+        raise ValueError(
+            "GDRIVE_CREDENTIALS is not valid base64. Use a one-line base64 "
+            "encoding of the Google service-account JSON key, or paste the raw "
+            "JSON key directly."
+        ) from exc
+
+    try:
+        creds_json = decoded.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(
+            "GDRIVE_CREDENTIALS decoded from base64, but the result is not "
+            "UTF-8 JSON. Recreate the secret from the original service-account "
+            "JSON key file."
+        ) from exc
+
+    return json.loads(creds_json)
+
+
 def get_gdrive_service():
     """Create Google Drive API service from credentials and provide debugging info."""
     creds_b64 = os.environ.get("GDRIVE_CREDENTIALS")
@@ -28,9 +57,7 @@ def get_gdrive_service():
         return None, None
 
     try:
-        # Decode base64 credentials
-        creds_json = base64.b64decode(creds_b64).decode('utf-8')
-        creds_dict = json.loads(creds_json)
+        creds_dict = load_credentials_from_secret(creds_b64)
 
         # Don't print private key material — only safe metadata
         client_email = creds_dict.get('client_email')
